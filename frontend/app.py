@@ -3,6 +3,9 @@ import requests
 import sys
 import os
 from dotenv import load_dotenv
+
+ 
+
 load_dotenv()
 
 # Add parent directory to sys.path so "agent" becomes importable
@@ -51,20 +54,25 @@ if "code" in st.query_params:
         st.stop()
 
 # ✅ 4. Check if Google token is available
-try:
-    get_calendar_service()
-except FileNotFoundError:
+if "token" not in st.session_state:
     st.warning("Please connect your Google Calendar to continue.")
     if st.button("Connect Google Calendar"):
         auth_url = get_auth_url()
         st.markdown(f"[Click here to authorize Google Calendar]({auth_url})", unsafe_allow_html=True)
     st.stop()
 
+# Now that token is present, safely call get_calendar_service()
+try:
+    get_calendar_service()
+except Exception as e:
+    st.error(f"❌ Calendar error: {e}")
+    st.stop()
+
 # ✅ 5. Chat Interface
 if "history" not in st.session_state:
     st.session_state.history = []
 
-user_input = st.text_input("Ask something (e.g. 'Am I free tomorrow?' or 'Book a meeting at 3 PM'):")
+user_input = st.text_input("Ask something (e.g. 'Am I free tomorrow?' or 'Book a meeting at 3 PM'): ")
 
 if st.button("Send") and user_input:
     st.session_state.history.append(("You", user_input))
