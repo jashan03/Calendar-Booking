@@ -52,17 +52,34 @@
 # backend/main.py
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
-from agent.langgraph_flow import langgraph_agent
+from fastapi.responses import RedirectResponse, JSONResponse
 from google_auth_oauthlib.flow import Flow
-import google.generativeai as genai
+from agent.langgraph_flow import langgraph_agent
+from pydantic import BaseModel
 from dotenv import load_dotenv
 import os
+from agent.oauth_utils import get_google_flow
+
+
 
 
 app = FastAPI()
 graph = langgraph_agent()
 load_dotenv()
+
+# backend/main.py
+
+REQUIRED_ENV_VARS = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI", "GEMINI_API_KEY"]
+
+missing = [var for var in REQUIRED_ENV_VARS if not os.getenv(var)]
+if missing:
+    raise RuntimeError(f"❌ Missing required environment variables in backend: {', '.join(missing)}")
+
+
+class TokenPayload(BaseModel):
+    token: str
+
+stored_token = {}  # In-memory token storage
 
 app.add_middleware(
     CORSMiddleware,
@@ -76,13 +93,14 @@ app.add_middleware(
 def root():
     return {"message": "Booking Agent API is running!"}
 
+@app.post("/chat/token")
+def receive_token(payload: TokenPayload):
+    stored_token["token"] = payload.token
+    return {"message": "Token stored"}
+
 @app.get("/authorize")
 def authorize():
-    flow = Flow.from_client_secrets_file(
-        "credentials.json",
-        scopes=["https://www.googleapis.com/auth/calendar"],
-        redirect_uri="http://localhost:8080/callback"
-    )
+    flow = get_google_flow()
     auth_url, _ = flow.authorization_url(prompt='consent')
     return RedirectResponse(auth_url)
 
@@ -115,4 +133,8 @@ async def chat_endpoint(request: Request):
     except Exception as e:
         print("❌ Error during LangGraph agent call:", e)
         return JSONResponse(status_code=500, content={"response": f"Error: {str(e)}"})
+    
+
+
+
 

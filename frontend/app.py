@@ -1,4 +1,3 @@
-# frontend/app.py
 import streamlit as st
 import requests
 import sys
@@ -13,6 +12,9 @@ from agent.calendar import get_auth_url, get_calendar_service, save_token_from_c
 
 st.set_page_config(page_title="AI Calendar Assistant", page_icon="📅")
 st.title("📅 AI Calendar Booking Assistant")
+
+# ✅ Backend URL constant
+BACKEND_URL = "https://calendar-booking-m07m.onrender.com"
 
 # ✅ 1. Check required environment variables
 required_env_vars = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"]
@@ -37,6 +39,11 @@ if "code" in st.query_params:
     try:
         full_url = get_current_url()
         save_token_from_code(full_url)
+        token = st.session_state["token"]
+
+        # ✅ Send token to backend
+        res = requests.post(f"{BACKEND_URL}/chat/token", json={"token": token})
+
         st.success("✅ Google Calendar connected successfully!")
         st.query_params.clear()  # Clear ?code from URL
     except Exception as e:
@@ -63,8 +70,8 @@ if st.button("Send") and user_input:
     st.session_state.history.append(("You", user_input))
 
     try:
-        # ✅ POST to backend /chat
-        res = requests.post("https://calendar-booking.streamlit.app/chat", json={"message": user_input})
+        # ✅ Send user message to backend
+        res = requests.post(f"{BACKEND_URL}/chat", json={"message": user_input})
         bot_reply = res.json().get("response", "Error: No response from backend.")
     except Exception as e:
         bot_reply = f"❌ Failed to contact backend: {e}"
