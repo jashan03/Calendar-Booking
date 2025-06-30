@@ -87,7 +87,7 @@ except Exception as e:
 if "history" not in st.session_state:
     st.session_state.history = []
 
-user_input = st.text_input("Ask something (e.g. 'Am I free tomorrow?' or 'Book a meeting at 3 PM and specify date'): ")
+user_input = st.text_input("Ask something (e.g. 'Am I free tomorrow?' or 'Book a meeting for tomorrow, June 1st, 2025, at 10 AM for 30 minutes'): ")
 
 if st.button("Send") and user_input:
     st.session_state.history.append(("You", user_input))
