@@ -4,8 +4,6 @@ import sys
 import os
 from dotenv import load_dotenv
 
- 
-
 load_dotenv()
 
 # Add parent directory to sys.path so "agent" becomes importable
@@ -47,28 +45,33 @@ if "code" in st.query_params:
         # ✅ Send token to backend
         res = requests.post(f"{BACKEND_URL}/chat/token", json={"token": token})
 
-        st.success("✅ Google Calendar connected successfully!")
-        st.query_params.clear()  # Clear ?code from URL
+        if res.ok:
+            st.success("✅ Google Calendar connected successfully!")
+            st.session_state["token_ready"] = True
+            st.experimental_set_query_params()  # Clear ?code from URL
+        else:
+            st.error("❌ Failed to store token in backend.")
+            st.stop()
     except Exception as e:
         st.error(f"❌ Failed to save token: {e}")
         st.stop()
 
 # ✅ 4. Check if Google token is available
-if "token" not in st.session_state:
+if "token" not in st.session_state or not st.session_state.get("token_ready"):
     st.warning("Please connect your Google Calendar to continue.")
     if st.button("Connect Google Calendar"):
         auth_url = get_auth_url()
         st.markdown(f"[Click here to authorize Google Calendar]({auth_url})", unsafe_allow_html=True)
     st.stop()
 
-# Now that token is present, safely call get_calendar_service()
+# ✅ 5. Now that token is present, safely call get_calendar_service()
 try:
     get_calendar_service()
 except Exception as e:
     st.error(f"❌ Calendar error: {e}")
     st.stop()
 
-# ✅ 5. Chat Interface
+# ✅ 6. Chat Interface
 if "history" not in st.session_state:
     st.session_state.history = []
 
@@ -86,6 +89,6 @@ if st.button("Send") and user_input:
 
     st.session_state.history.append(("Bot", bot_reply))
 
-# ✅ 6. Show chat history
+# ✅ 7. Show chat history
 for sender, msg in st.session_state.history:
     st.write(f"**{sender}:** {msg}")

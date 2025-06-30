@@ -29,6 +29,7 @@ def get_calendar_service():
     creds = Credentials.from_authorized_user_info(json.loads(token_data), ["https://www.googleapis.com/auth/calendar"])
     return build('calendar', 'v3', credentials=creds)
 
+
 def check_availability():
     service = get_calendar_service()
     now = datetime.now(timezone.utc).isoformat()

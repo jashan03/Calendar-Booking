@@ -96,9 +96,14 @@ def root():
     return {"message": "Booking Agent API is running!"}
 
 @app.post("/chat/token")
-def receive_token(payload: TokenPayload):
-    stored_token["token"] = payload.token
-    return {"message": "Token stored"}
+async def save_token(request: Request):
+    data = await request.json()
+    token = data.get("token")
+    if token:
+        stored_token["token"] = token
+        return JSONResponse(content={"status": "success"})
+    else:
+        return JSONResponse(status_code=400, content={"error": "Missing token"})
 
 @app.get("/authorize")
 def authorize():
