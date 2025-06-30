@@ -4,8 +4,8 @@ import streamlit as st
 from datetime import datetime, timedelta, timezone
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
-from backend.main import stored_token
 from agent.oauth_utils import get_google_flow  
+from agent.token_store import stored_token
 
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
