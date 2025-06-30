@@ -50,6 +50,7 @@
 #     return HTMLResponse("<h2>Authentication Successful! You can now book appointments.</h2>")
 
 # backend/main.py
+import traceback
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, JSONResponse
@@ -60,6 +61,9 @@ from dotenv import load_dotenv
 import os
 from agent.oauth_utils import get_google_flow
 from agent.token_store import stored_token
+import traceback
+import json
+
 
 
 
@@ -81,7 +85,6 @@ if missing:
 class TokenPayload(BaseModel):
     token: str
 
-stored_token = {}  # In-memory token storage
 
 app.add_middleware(
     CORSMiddleware,
@@ -96,14 +99,10 @@ def root():
     return {"message": "Booking Agent API is running!"}
 
 @app.post("/chat/token")
-async def save_token(request: Request):
-    data = await request.json()
-    token = data.get("token")
-    if token:
-        stored_token["token"] = token
-        return JSONResponse(content={"status": "success"})
-    else:
-        return JSONResponse(status_code=400, content={"error": "Missing token"})
+async def receive_token(token_data: dict):
+    print("📥 Received token at backend:", token_data)
+    stored_token["token"] = json.dumps(token_data) # This correctly stores the stringified JSON
+    return {"status": "success"}
 
 @app.get("/authorize")
 def authorize():
@@ -111,37 +110,72 @@ def authorize():
     auth_url, _ = flow.authorization_url(prompt='consent')
     return RedirectResponse(auth_url)
 
-from fastapi import Request
-from fastapi.responses import JSONResponse
-
-from fastapi import Request
-from fastapi.responses import JSONResponse
-import google.generativeai as genai
-import os
-
+# In your /chat endpoint, add better error logging:
 @app.post("/chat")
 async def chat_endpoint(request: Request):
-    print("📥 Received POST request to /chat")
-
     try:
         body = await request.json()
-        print("📦 Request body:", body)
-    except Exception as e:
-        print("❌ Failed to parse JSON body:", e)
-        return JSONResponse(status_code=400, content={"response": "Invalid JSON body."})
+        message = body.get("message", "").strip()
+        token = body.get("token")  # ✅ Token from frontend (optional)
 
-    message = body.get("message", "")
-    print("🗣️ Message received from user:", message)
+        if not message:
+            return JSONResponse(status_code=400, content={"response": "Message cannot be empty."})
 
-    try:
-        result = graph.invoke({"input": message})
-        print("✅ LangGraph agent result:", result)
-        return {"response": result.get("output", "Sorry, I didn’t understand that.")}
+        print("🟡 Received message:", message)
+
+        # ✅ Store token if provided (for future use)
+        if token:
+            stored_token["token"] = token
+            print("🔐 Token saved from incoming request")
+
+        # ✅ DEBUG: Show current stored token state
+        print("🧪 Current stored token:", stored_token.get("token"))
+
+        # Initial state for LangGraph
+        initial_state = {
+        "input": message,
+        "token": token,
+        "intent": "",
+        "summary": "",
+        "start_time": "",
+        "duration_minutes": 0,
+        "output": ""
+    }
+
+        print("🔍 Invoking LangGraph with initial_state:", initial_state)
+        result = graph.invoke(initial_state)
+        print("✅ LangGraph result:", result)
+
+        if result.get("intent") == "error":
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "response": result.get("output", "Agent error."),
+                    "type": "agent_error"
+                }
+            )
+
+        return {"response": result.get("output", "✅ Request processed but no output.")}
+
     except Exception as e:
-        print("❌ Error during LangGraph agent call:", e)
-        return JSONResponse(status_code=500, content={"response": f"Error: {str(e)}"})
+        print("❌ Exception occurred during /chat processing")
+        traceback.print_exc()
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "response": f"❌ Internal Server Error: {str(e)}",
+                "type": type(e).__name__,
+                "trace": traceback.format_exc()
+            }
+        )
+
     
-
-
-
-
+@app.get("/callback")
+async def callback(code: str):
+    flow = get_google_flow()
+    flow.fetch_token(code=code)
+    creds = flow.credentials
+    token_json = creds.to_json()
+    stored_token["token"] = token_json
+    return {"token": token_json}  # ✅ Ensure this returns JSON
